@@ -59,7 +59,7 @@ export default async function handler(req, res) {
       message: status === 'PRESENT'
         ? 'Check-in successful! You are marked as present.'
         : status === 'FLAGGED'
-        ? 'Check-in recorded, but your location could not be verified. See your instructor if this is an error.'
+        ? `You're checked in, but you are ${Math.round(distance).toLocaleString()} meters away from the correct location. If you are present in class, please show this message to your professor.`
         : 'Check-in recorded.',
     });
   } catch (err) {
