@@ -10,60 +10,50 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const { code, password, lat, lng, radius } = req.query;
 
-  const { name, code, latitude, longitude } = req.body;
-
-  if (!name || !code || latitude == null || longitude == null) {
-    return res.status(400).json({ error: 'Missing required fields.' });
+  if (password !== process.env.DASHBOARD_PASSWORD) {
+    return res.status(401).json({ error: 'Unauthorized' });
   }
 
   try {
     const sheet = await getSheet();
-
-    // Get active code from Google Sheet
-    const configRes = await sheet.spreadsheets.values.get({
-      spreadsheetId: process.env.SHEET_ID,
-      range: 'Config!B1',
-    });
-
-    const activeCode = configRes.data.values?.[0]?.[0] || '';
-    if (!activeCode || code.toUpperCase() !== activeCode.toUpperCase()) {
-      return res.status(400).json({ error: 'Invalid or expired session code. Please check with your instructor.' });
-    }
-
-    const classLat = parseFloat(process.env.CLASS_LAT || '0');
-    const classLng = parseFloat(process.env.CLASS_LNG || '0');
-    const classRadius = parseFloat(process.env.CLASS_RADIUS || '50');
-
-    let distance = null;
-    let status = 'NO_LOCATION_SET';
-
-    if (classLat !== 0 && classLng !== 0) {
-      distance = haversineDistance(latitude, longitude, classLat, classLng);
-      status = distance <= classRadius ? 'PRESENT' : 'FLAGGED';
-    }
-
-    const timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' });
-
-    await sheet.spreadsheets.values.append({
+    const response = await sheet.spreadsheets.values.get({
       spreadsheetId: process.env.SHEET_ID,
       range: 'Sheet1!A:G',
-      valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: [[timestamp, name, code.toUpperCase(), latitude, longitude, distance !== null ? Math.round(distance) : 'N/A', status]],
-      },
     });
 
-    return res.status(200).json({
-      message: status === 'PRESENT'
-        ? 'Check-in successful! You are marked as present.'
-        : status === 'FLAGGED'
-        ? 'Check-in recorded, but your location could not be verified. See your instructor if this is an error.'
-        : 'Check-in recorded.',
-    });
+    const rows = response.data.values || [];
+    const dataRows = rows.slice(1);
+
+    const classLat = parseFloat(lat || '0');
+    const classLng = parseFloat(lng || '0');
+    const classRadius = parseFloat(radius || '50');
+
+    const filtered = dataRows
+      .filter((row) => row[2] && row[2].toUpperCase() === code.toUpperCase())
+      .map((row) => {
+        const studentLat = parseFloat(row[3]);
+        const studentLng = parseFloat(row[4]);
+        let distance = null;
+        let status = row[6] || 'UNKNOWN';
+
+        if (classLat !== 0 && classLng !== 0 && !isNaN(studentLat) && !isNaN(studentLng)) {
+          distance = haversineDistance(studentLat, studentLng, classLat, classLng);
+          status = distance <= classRadius ? 'PRESENT' : 'FLAGGED';
+        }
+
+        return {
+          timestamp: row[0],
+          name: row[1],
+          distance,
+          status,
+        };
+      });
+
+    return res.status(200).json({ checkins: filtered });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: 'Could not save your check-in. Please try again.' });
+    return res.status(500).json({ error: 'Could not load check-ins.' });
   }
 }
