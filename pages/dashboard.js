@@ -1,0 +1,187 @@
+import { useState, useEffect, useCallback } from 'react';
+
+export default function Dashboard() {
+  const [password, setPassword] = useState('');
+  const [authed, setAuthed] = useState(false);
+  const [sessionCode, setSessionCode] = useState('');
+  const [checkins, setCheckins] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [genLoading, setGenLoading] = useState(false);
+  const [classLat, setClassLat] = useState('');
+  const [classLng, setClassLng] = useState('');
+  const [radius, setRadius] = useState('50');
+  const [lastRefresh, setLastRefresh] = useState(null);
+
+  const fetchCheckins = useCallback(async () => {
+    if (!sessionCode) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/checkins?code=${sessionCode}&password=${password}&lat=${classLat}&lng=${classLng}&radius=${radius}`);
+      const data = await res.json();
+      if (res.ok) {
+        setCheckins(data.checkins);
+        setLastRefresh(new Date().toLocaleTimeString());
+      }
+    } catch {}
+    setLoading(false);
+  }, [sessionCode, password, classLat, classLng, radius]);
+
+  useEffect(() => {
+    if (!authed || !sessionCode) return;
+    fetchCheckins();
+    const interval = setInterval(fetchCheckins, 15000);
+    return () => clearInterval(interval);
+  }, [authed, sessionCode, fetchCheckins]);
+
+  const generateCode = async () => {
+    setGenLoading(true);
+    const res = await fetch('/api/generate-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setSessionCode(data.code);
+      setCheckins([]);
+    } else {
+      alert(data.error || 'Failed to generate code');
+    }
+    setGenLoading(false);
+  };
+
+  if (!authed) {
+    return (
+      <div style={styles.container}>
+        <div style={styles.card}>
+          <h1 style={styles.title}>Instructor Login</h1>
+          <input
+            style={styles.input}
+            type="password"
+            placeholder="Dashboard password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && setAuthed(true)}
+          />
+          <button style={styles.button} onClick={() => setAuthed(true)}>
+            Enter Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const present = checkins.filter((c) => c.status === 'PRESENT').length;
+  const flagged = checkins.filter((c) => c.status === 'FLAGGED').length;
+
+  return (
+    <div style={styles.page}>
+      <div style={styles.header}>
+        <h1 style={styles.headerTitle}>Attendance Dashboard</h1>
+        {lastRefresh && <span style={styles.refreshNote}>Last updated: {lastRefresh}</span>}
+      </div>
+
+      <div style={styles.section}>
+        <h2 style={styles.sectionTitle}>Classroom Location</h2>
+        <div style={styles.row}>
+          <input style={styles.inputSmall} placeholder="Classroom Latitude" value={classLat} onChange={(e) => setClassLat(e.target.value)} />
+          <input style={styles.inputSmall} placeholder="Classroom Longitude" value={classLng} onChange={(e) => setClassLng(e.target.value)} />
+          <input style={styles.inputSmall} placeholder="Radius (meters)" value={radius} onChange={(e) => setRadius(e.target.value)} />
+        </div>
+        <p style={styles.hint}>Find your classroom coordinates at maps.google.com — right-click the building and copy the coordinates shown.</p>
+      </div>
+
+      <div style={styles.section}>
+        <h2 style={styles.sectionTitle}>Session Code</h2>
+        <button style={{ ...styles.button, marginBottom: '12px' }} onClick={generateCode} disabled={genLoading}>
+          {genLoading ? 'Generating...' : 'Generate New Session Code'}
+        </button>
+        {sessionCode && (
+          <div style={styles.codeBox}>
+            <span style={styles.codeLabel}>Today's code:</span>
+            <span style={styles.code}>{sessionCode}</span>
+          </div>
+        )}
+      </div>
+
+      {sessionCode && (
+        <div style={styles.section}>
+          <div style={styles.statsRow}>
+            <div style={{ ...styles.statCard, borderColor: '#38a169' }}>
+              <div style={styles.statNum}>{present}</div>
+              <div style={styles.statLabel}>Present</div>
+            </div>
+            <div style={{ ...styles.statCard, borderColor: '#e53e3e' }}>
+              <div style={styles.statNum}>{flagged}</div>
+              <div style={styles.statLabel}>Flagged</div>
+            </div>
+            <div style={{ ...styles.statCard, borderColor: '#3b82f6' }}>
+              <div style={styles.statNum}>{checkins.length}</div>
+              <div style={styles.statLabel}>Total</div>
+            </div>
+          </div>
+
+          <button style={{ ...styles.button, backgroundColor: '#6b7280', marginBottom: '16px' }} onClick={fetchCheckins} disabled={loading}>
+            {loading ? 'Refreshing...' : 'Refresh Now'}
+          </button>
+
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                {['Name', 'Time', 'Distance', 'Status'].map((h) => (
+                  <th key={h} style={styles.th}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {checkins.length === 0 ? (
+                <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px', color: '#718096' }}>No check-ins yet</td></tr>
+              ) : (
+                checkins.map((c, i) => (
+                  <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#f7fafc' : '#fff' }}>
+                    <td style={styles.td}>{c.name}</td>
+                    <td style={styles.td}>{c.timestamp}</td>
+                    <td style={styles.td}>{c.distance !== null ? `${Math.round(c.distance)}m` : 'N/A'}</td>
+                    <td style={styles.td}>
+                      <span style={{ ...styles.badge, backgroundColor: c.status === 'PRESENT' ? '#c6f6d5' : c.status === 'FLAGGED' ? '#fed7d7' : '#e2e8f0', color: c.status === 'PRESENT' ? '#276749' : c.status === 'FLAGGED' ? '#9b2c2c' : '#4a5568' }}>
+                        {c.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const styles = {
+  container: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f4f8', fontFamily: 'sans-serif' },
+  page: { minHeight: '100vh', backgroundColor: '#f0f4f8', padding: '32px 24px', fontFamily: 'sans-serif', maxWidth: '860px', margin: '0 auto' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' },
+  headerTitle: { margin: 0, fontSize: '28px', fontWeight: '700', color: '#1a202c' },
+  refreshNote: { fontSize: '13px', color: '#718096' },
+  card: { backgroundColor: '#fff', borderRadius: '16px', padding: '40px 32px', maxWidth: '400px', width: '100%', boxShadow: '0 4px 24px rgba(0,0,0,0.10)', display: 'flex', flexDirection: 'column', gap: '16px' },
+  title: { margin: 0, fontSize: '24px', fontWeight: '700', color: '#1a202c' },
+  section: { backgroundColor: '#fff', borderRadius: '12px', padding: '24px', marginBottom: '20px', boxShadow: '0 1px 6px rgba(0,0,0,0.07)' },
+  sectionTitle: { margin: '0 0 16px 0', fontSize: '18px', fontWeight: '600', color: '#2d3748' },
+  row: { display: 'flex', gap: '10px', flexWrap: 'wrap' },
+  input: { padding: '12px 14px', fontSize: '16px', borderRadius: '8px', border: '1.5px solid #cbd5e0', width: '100%', boxSizing: 'border-box' },
+  inputSmall: { padding: '10px 12px', fontSize: '14px', borderRadius: '8px', border: '1.5px solid #cbd5e0', flex: 1, minWidth: '140px', boxSizing: 'border-box' },
+  button: { padding: '12px 20px', fontSize: '15px', fontWeight: '600', backgroundColor: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', width: '100%' },
+  hint: { margin: '10px 0 0 0', fontSize: '12px', color: '#718096' },
+  codeBox: { display: 'flex', alignItems: 'center', gap: '14px', backgroundColor: '#ebf8ff', borderRadius: '10px', padding: '16px 20px' },
+  codeLabel: { fontSize: '14px', color: '#2b6cb0', fontWeight: '500' },
+  code: { fontSize: '36px', fontWeight: '800', color: '#2b6cb0', letterSpacing: '6px' },
+  statsRow: { display: 'flex', gap: '16px', marginBottom: '20px' },
+  statCard: { flex: 1, backgroundColor: '#fff', border: '2px solid', borderRadius: '10px', padding: '16px', textAlign: 'center' },
+  statNum: { fontSize: '32px', fontWeight: '700', color: '#1a202c' },
+  statLabel: { fontSize: '13px', color: '#718096', marginTop: '4px' },
+  table: { width: '100%', borderCollapse: 'collapse', fontSize: '14px' },
+  th: { textAlign: 'left', padding: '10px 12px', borderBottom: '2px solid #e2e8f0', color: '#4a5568', fontWeight: '600' },
+  td: { padding: '10px 12px', borderBottom: '1px solid #e2e8f0', color: '#2d3748' },
+  badge: { padding: '3px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: '600' },
+};
