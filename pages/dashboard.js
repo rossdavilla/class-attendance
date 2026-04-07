@@ -7,6 +7,8 @@ const LOCATIONS = [
   { name: 'SSB (Social Sciences Building)', lat: '37.36768958791874', lng: '-120.42259253749232' },
 ];
 
+const CLASSES = ['Select a class...', 'PSY157', 'PSY170', 'PSY175'];
+
 export default function Dashboard() {
   const [password, setPassword] = useState('');
   const [authed, setAuthed] = useState(false);
@@ -18,6 +20,7 @@ export default function Dashboard() {
   const [classLng, setClassLng] = useState('');
   const [radius, setRadius] = useState('80');
   const [selectedLocation, setSelectedLocation] = useState(0);
+  const [selectedClass, setSelectedClass] = useState(0);
   const [lastRefresh, setLastRefresh] = useState(null);
 
   const handleLocationSelect = (index) => {
@@ -48,11 +51,13 @@ export default function Dashboard() {
   }, [authed, sessionCode, fetchCheckins]);
 
   const generateCode = async () => {
+    if (!classLat) { alert('Please select a classroom location first.'); return; }
+    if (selectedClass === 0) { alert('Please select a class first.'); return; }
     setGenLoading(true);
     const res = await fetch('/api/generate-code', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ password, activeClass: CLASSES[selectedClass] }),
     });
     const data = await res.json();
     if (res.ok) {
@@ -96,21 +101,32 @@ export default function Dashboard() {
       </div>
 
       <div style={styles.section}>
-        <h2 style={styles.sectionTitle}>Classroom Location</h2>
+        <h2 style={styles.sectionTitle}>Session Setup</h2>
+
+        <label style={styles.label}>Class</label>
+        <select
+          style={styles.select}
+          value={selectedClass}
+          onChange={(e) => setSelectedClass(Number(e.target.value))}
+        >
+          {CLASSES.map((c, i) => <option key={i} value={i}>{c}</option>)}
+        </select>
+
+        <label style={styles.label}>Classroom Building</label>
         <select
           style={styles.select}
           value={selectedLocation}
           onChange={(e) => handleLocationSelect(Number(e.target.value))}
         >
-          {LOCATIONS.map((loc, i) => (
-            <option key={i} value={i}>{loc.name}</option>
-          ))}
+          {LOCATIONS.map((loc, i) => <option key={i} value={i}>{loc.name}</option>)}
         </select>
+
         {classLat && classLng && (
           <p style={styles.coordDisplay}>
             Coordinates: {parseFloat(classLat).toFixed(5)}, {parseFloat(classLng).toFixed(5)}
           </p>
         )}
+
         <div style={styles.radiusRow}>
           <label style={styles.radiusLabel}>Verification radius (meters):</label>
           <input
@@ -124,14 +140,7 @@ export default function Dashboard() {
 
       <div style={styles.section}>
         <h2 style={styles.sectionTitle}>Session Code</h2>
-        {!classLat && (
-          <p style={styles.warning}>⚠ Please select a classroom location above before generating a code.</p>
-        )}
-        <button
-          style={{ ...styles.button, opacity: !classLat ? 0.5 : 1 }}
-          onClick={generateCode}
-          disabled={genLoading}
-        >
+        <button style={styles.button} onClick={generateCode} disabled={genLoading}>
           {genLoading ? 'Generating...' : 'Generate New Session Code'}
         </button>
         {sessionCode && (
@@ -218,12 +227,12 @@ const styles = {
   title: { margin: 0, fontSize: '24px', fontWeight: '700', color: '#1a202c' },
   section: { backgroundColor: '#fff', borderRadius: '12px', padding: '24px', marginBottom: '20px', boxShadow: '0 1px 6px rgba(0,0,0,0.07)' },
   sectionTitle: { margin: '0 0 16px 0', fontSize: '18px', fontWeight: '600', color: '#2d3748' },
-  select: { width: '100%', padding: '12px 14px', fontSize: '15px', borderRadius: '8px', border: '1.5px solid #cbd5e0', backgroundColor: '#fff', marginBottom: '10px', boxSizing: 'border-box' },
-  coordDisplay: { margin: '0 0 12px 0', fontSize: '13px', color: '#4a5568', fontFamily: 'monospace' },
-  radiusRow: { display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' },
+  label: { display: 'block', fontSize: '13px', fontWeight: '600', color: '#4a5568', marginBottom: '6px', marginTop: '12px' },
+  select: { width: '100%', padding: '12px 14px', fontSize: '15px', borderRadius: '8px', border: '1.5px solid #cbd5e0', backgroundColor: '#fff', boxSizing: 'border-box' },
+  coordDisplay: { margin: '8px 0 0 0', fontSize: '13px', color: '#4a5568', fontFamily: 'monospace' },
+  radiusRow: { display: 'flex', alignItems: 'center', gap: '12px', marginTop: '12px' },
   radiusLabel: { fontSize: '14px', color: '#4a5568' },
   radiusInput: { padding: '8px 12px', fontSize: '14px', borderRadius: '8px', border: '1.5px solid #cbd5e0', width: '90px' },
-  warning: { margin: '0 0 12px 0', fontSize: '13px', color: '#b7791f', backgroundColor: '#fefcbf', padding: '10px 14px', borderRadius: '8px' },
   input: { padding: '12px 14px', fontSize: '16px', borderRadius: '8px', border: '1.5px solid #cbd5e0', width: '100%', boxSizing: 'border-box' },
   button: { padding: '12px 20px', fontSize: '15px', fontWeight: '600', backgroundColor: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', width: '100%' },
   codeBox: { display: 'flex', alignItems: 'center', gap: '14px', backgroundColor: '#ebf8ff', borderRadius: '10px', padding: '16px 20px', marginTop: '14px' },
