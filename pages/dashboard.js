@@ -1,5 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 
+const LOCATIONS = [
+  { name: 'Select a classroom...', lat: '', lng: '' },
+  { name: 'KL (Kolligian Library)', lat: '37.3662058749318', lng: '-120.42472753429566' },
+  { name: 'COB2', lat: '37.36716946259973', lng: '-120.4246523673314' },
+  { name: 'SSB (Social Sciences Building)', lat: '37.36768958791874', lng: '-120.42259253749232' },
+];
+
 export default function Dashboard() {
   const [password, setPassword] = useState('');
   const [authed, setAuthed] = useState(false);
@@ -9,8 +16,15 @@ export default function Dashboard() {
   const [genLoading, setGenLoading] = useState(false);
   const [classLat, setClassLat] = useState('');
   const [classLng, setClassLng] = useState('');
-  const [radius, setRadius] = useState('50');
+  const [radius, setRadius] = useState('80');
+  const [selectedLocation, setSelectedLocation] = useState(0);
   const [lastRefresh, setLastRefresh] = useState(null);
+
+  const handleLocationSelect = (index) => {
+    setSelectedLocation(index);
+    setClassLat(LOCATIONS[index].lat);
+    setClassLng(LOCATIONS[index].lng);
+  };
 
   const fetchCheckins = useCallback(async () => {
     if (!sessionCode) return;
@@ -78,22 +92,46 @@ export default function Dashboard() {
     <div style={styles.page}>
       <div style={styles.header}>
         <h1 style={styles.headerTitle}>Attendance Dashboard</h1>
-        {lastRefresh && <span style={styles.refreshNote}>Last updated: {lastRefresh}</span>}
+        {lastRefresh && <span style={styles.refreshNote}>Auto-refreshes every 15s · Last updated: {lastRefresh}</span>}
       </div>
 
       <div style={styles.section}>
         <h2 style={styles.sectionTitle}>Classroom Location</h2>
-        <div style={styles.row}>
-          <input style={styles.inputSmall} placeholder="Classroom Latitude" value={classLat} onChange={(e) => setClassLat(e.target.value)} />
-          <input style={styles.inputSmall} placeholder="Classroom Longitude" value={classLng} onChange={(e) => setClassLng(e.target.value)} />
-          <input style={styles.inputSmall} placeholder="Radius (meters)" value={radius} onChange={(e) => setRadius(e.target.value)} />
+        <select
+          style={styles.select}
+          value={selectedLocation}
+          onChange={(e) => handleLocationSelect(Number(e.target.value))}
+        >
+          {LOCATIONS.map((loc, i) => (
+            <option key={i} value={i}>{loc.name}</option>
+          ))}
+        </select>
+        {classLat && classLng && (
+          <p style={styles.coordDisplay}>
+            Coordinates: {parseFloat(classLat).toFixed(5)}, {parseFloat(classLng).toFixed(5)}
+          </p>
+        )}
+        <div style={styles.radiusRow}>
+          <label style={styles.radiusLabel}>Verification radius (meters):</label>
+          <input
+            style={styles.radiusInput}
+            type="number"
+            value={radius}
+            onChange={(e) => setRadius(e.target.value)}
+          />
         </div>
-        <p style={styles.hint}>Find your classroom coordinates at maps.google.com — right-click the building and copy the coordinates shown.</p>
       </div>
 
       <div style={styles.section}>
         <h2 style={styles.sectionTitle}>Session Code</h2>
-        <button style={{ ...styles.button, marginBottom: '12px' }} onClick={generateCode} disabled={genLoading}>
+        {!classLat && (
+          <p style={styles.warning}>⚠ Please select a classroom location above before generating a code.</p>
+        )}
+        <button
+          style={{ ...styles.button, opacity: !classLat ? 0.5 : 1 }}
+          onClick={generateCode}
+          disabled={genLoading}
+        >
           {genLoading ? 'Generating...' : 'Generate New Session Code'}
         </button>
         {sessionCode && (
@@ -121,7 +159,11 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <button style={{ ...styles.button, backgroundColor: '#6b7280', marginBottom: '16px' }} onClick={fetchCheckins} disabled={loading}>
+          <button
+            style={{ ...styles.button, backgroundColor: '#6b7280', marginBottom: '16px' }}
+            onClick={fetchCheckins}
+            disabled={loading}
+          >
             {loading ? 'Refreshing...' : 'Refresh Now'}
           </button>
 
@@ -135,7 +177,11 @@ export default function Dashboard() {
             </thead>
             <tbody>
               {checkins.length === 0 ? (
-                <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px', color: '#718096' }}>No check-ins yet</td></tr>
+                <tr>
+                  <td colSpan={4} style={{ textAlign: 'center', padding: '20px', color: '#718096' }}>
+                    No check-ins yet
+                  </td>
+                </tr>
               ) : (
                 checkins.map((c, i) => (
                   <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#f7fafc' : '#fff' }}>
@@ -143,7 +189,11 @@ export default function Dashboard() {
                     <td style={styles.td}>{c.timestamp}</td>
                     <td style={styles.td}>{c.distance !== null ? `${Math.round(c.distance)}m` : 'N/A'}</td>
                     <td style={styles.td}>
-                      <span style={{ ...styles.badge, backgroundColor: c.status === 'PRESENT' ? '#c6f6d5' : c.status === 'FLAGGED' ? '#fed7d7' : '#e2e8f0', color: c.status === 'PRESENT' ? '#276749' : c.status === 'FLAGGED' ? '#9b2c2c' : '#4a5568' }}>
+                      <span style={{
+                        ...styles.badge,
+                        backgroundColor: c.status === 'PRESENT' ? '#c6f6d5' : c.status === 'FLAGGED' ? '#fed7d7' : '#e2e8f0',
+                        color: c.status === 'PRESENT' ? '#276749' : c.status === 'FLAGGED' ? '#9b2c2c' : '#4a5568',
+                      }}>
                         {c.status}
                       </span>
                     </td>
@@ -161,19 +211,22 @@ export default function Dashboard() {
 const styles = {
   container: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f4f8', fontFamily: 'sans-serif' },
   page: { minHeight: '100vh', backgroundColor: '#f0f4f8', padding: '32px 24px', fontFamily: 'sans-serif', maxWidth: '860px', margin: '0 auto' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '8px' },
   headerTitle: { margin: 0, fontSize: '28px', fontWeight: '700', color: '#1a202c' },
   refreshNote: { fontSize: '13px', color: '#718096' },
   card: { backgroundColor: '#fff', borderRadius: '16px', padding: '40px 32px', maxWidth: '400px', width: '100%', boxShadow: '0 4px 24px rgba(0,0,0,0.10)', display: 'flex', flexDirection: 'column', gap: '16px' },
   title: { margin: 0, fontSize: '24px', fontWeight: '700', color: '#1a202c' },
   section: { backgroundColor: '#fff', borderRadius: '12px', padding: '24px', marginBottom: '20px', boxShadow: '0 1px 6px rgba(0,0,0,0.07)' },
   sectionTitle: { margin: '0 0 16px 0', fontSize: '18px', fontWeight: '600', color: '#2d3748' },
-  row: { display: 'flex', gap: '10px', flexWrap: 'wrap' },
+  select: { width: '100%', padding: '12px 14px', fontSize: '15px', borderRadius: '8px', border: '1.5px solid #cbd5e0', backgroundColor: '#fff', marginBottom: '10px', boxSizing: 'border-box' },
+  coordDisplay: { margin: '0 0 12px 0', fontSize: '13px', color: '#4a5568', fontFamily: 'monospace' },
+  radiusRow: { display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' },
+  radiusLabel: { fontSize: '14px', color: '#4a5568' },
+  radiusInput: { padding: '8px 12px', fontSize: '14px', borderRadius: '8px', border: '1.5px solid #cbd5e0', width: '90px' },
+  warning: { margin: '0 0 12px 0', fontSize: '13px', color: '#b7791f', backgroundColor: '#fefcbf', padding: '10px 14px', borderRadius: '8px' },
   input: { padding: '12px 14px', fontSize: '16px', borderRadius: '8px', border: '1.5px solid #cbd5e0', width: '100%', boxSizing: 'border-box' },
-  inputSmall: { padding: '10px 12px', fontSize: '14px', borderRadius: '8px', border: '1.5px solid #cbd5e0', flex: 1, minWidth: '140px', boxSizing: 'border-box' },
   button: { padding: '12px 20px', fontSize: '15px', fontWeight: '600', backgroundColor: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', width: '100%' },
-  hint: { margin: '10px 0 0 0', fontSize: '12px', color: '#718096' },
-  codeBox: { display: 'flex', alignItems: 'center', gap: '14px', backgroundColor: '#ebf8ff', borderRadius: '10px', padding: '16px 20px' },
+  codeBox: { display: 'flex', alignItems: 'center', gap: '14px', backgroundColor: '#ebf8ff', borderRadius: '10px', padding: '16px 20px', marginTop: '14px' },
   codeLabel: { fontSize: '14px', color: '#2b6cb0', fontWeight: '500' },
   code: { fontSize: '36px', fontWeight: '800', color: '#2b6cb0', letterSpacing: '6px' },
   statsRow: { display: 'flex', gap: '16px', marginBottom: '20px' },
