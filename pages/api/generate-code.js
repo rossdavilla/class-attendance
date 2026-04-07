@@ -12,7 +12,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Please select a class before generating a code.' });
   }
 
-  const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const code = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
 
   try {
     const sheet = await getSheet();
