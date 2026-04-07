@@ -21,16 +21,25 @@ export default async function handler(req, res) {
   try {
     const sheet = await getSheet();
 
-    // Get active code from Google Sheet
     const configRes = await sheet.spreadsheets.values.get({
       spreadsheetId: process.env.SHEET_ID,
-      range: 'Config!B1',
+      range: 'Config!B1:C1',
     });
 
     const activeCode = configRes.data.values?.[0]?.[0] || '';
+    const activeClass = configRes.data.values?.[0]?.[1] || '';
+
     if (!activeCode || code.toUpperCase() !== activeCode.toUpperCase()) {
       return res.status(400).json({ error: 'Invalid or expired session code. Please check with your instructor.' });
     }
+
+    const classSheets = {
+      PSY157: 'PSY157-Attendance',
+      PSY170: 'PSY170-Attendance',
+      PSY175: 'PSY175-Attendance',
+    };
+
+    const targetSheet = classSheets[activeClass] || 'Sheet1';
 
     const classLat = parseFloat(process.env.CLASS_LAT || '0');
     const classLng = parseFloat(process.env.CLASS_LNG || '0');
@@ -48,7 +57,7 @@ export default async function handler(req, res) {
 
     await sheet.spreadsheets.values.append({
       spreadsheetId: process.env.SHEET_ID,
-      range: 'Sheet1!A:G',
+      range: `${targetSheet}!A:G`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [[timestamp, name, code.toUpperCase(), latitude, longitude, distance !== null ? Math.round(distance) : 'N/A', status]],
