@@ -1,3 +1,5 @@
+import { getSheet } from '../../lib/sheets';
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -7,7 +9,18 @@ export default async function handler(req, res) {
   }
 
   const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-  process.env.ACTIVE_SESSION_CODE = code;
 
-  return res.status(200).json({ code });
+  try {
+    const sheet = await getSheet();
+    await sheet.spreadsheets.values.update({
+      spreadsheetId: process.env.SHEET_ID,
+      range: 'Config!B1',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [[code]] },
+    });
+    return res.status(200).json({ code });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Could not save session code.' });
+  }
 }
