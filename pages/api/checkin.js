@@ -18,27 +18,34 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing required fields.' });
   }
 
-  const activeCode = process.env.ACTIVE_SESSION_CODE;
-  if (!activeCode || code.toUpperCase() !== activeCode.toUpperCase()) {
-    return res.status(400).json({ error: 'Invalid or expired session code. Please check with your instructor.' });
-  }
-
-  const classLat = parseFloat(process.env.CLASS_LAT || '0');
-  const classLng = parseFloat(process.env.CLASS_LNG || '0');
-  const classRadius = parseFloat(process.env.CLASS_RADIUS || '50');
-
-  let distance = null;
-  let status = 'NO_LOCATION_SET';
-
-  if (classLat !== 0 && classLng !== 0) {
-    distance = haversineDistance(latitude, longitude, classLat, classLng);
-    status = distance <= classRadius ? 'PRESENT' : 'FLAGGED';
-  }
-
-  const timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' });
-
   try {
     const sheet = await getSheet();
+
+    // Get active code from Google Sheet
+    const configRes = await sheet.spreadsheets.values.get({
+      spreadsheetId: process.env.SHEET_ID,
+      range: 'Config!B1',
+    });
+
+    const activeCode = configRes.data.values?.[0]?.[0] || '';
+    if (!activeCode || code.toUpperCase() !== activeCode.toUpperCase()) {
+      return res.status(400).json({ error: 'Invalid or expired session code. Please check with your instructor.' });
+    }
+
+    const classLat = parseFloat(process.env.CLASS_LAT || '0');
+    const classLng = parseFloat(process.env.CLASS_LNG || '0');
+    const classRadius = parseFloat(process.env.CLASS_RADIUS || '50');
+
+    let distance = null;
+    let status = 'NO_LOCATION_SET';
+
+    if (classLat !== 0 && classLng !== 0) {
+      distance = haversineDistance(latitude, longitude, classLat, classLng);
+      status = distance <= classRadius ? 'PRESENT' : 'FLAGGED';
+    }
+
+    const timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' });
+
     await sheet.spreadsheets.values.append({
       spreadsheetId: process.env.SHEET_ID,
       range: 'Sheet1!A:G',
