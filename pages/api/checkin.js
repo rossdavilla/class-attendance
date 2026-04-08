@@ -9,6 +9,15 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function isPastCutoff(cutoffTime) {
+  if (!cutoffTime) return false;
+  const now = new Date();
+  const [hours, minutes] = cutoffTime.split(':').map(Number);
+  const cutoff = new Date();
+  cutoff.setHours(hours, minutes, 0, 0);
+  return now > cutoff;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -23,11 +32,12 @@ export default async function handler(req, res) {
 
     const configRes = await sheet.spreadsheets.values.get({
       spreadsheetId: process.env.SHEET_ID,
-      range: 'Config!B1:C1',
+      range: 'Config!B1:D1',
     });
 
     const activeCode = configRes.data.values?.[0]?.[0] || '';
     const activeClass = configRes.data.values?.[0]?.[1] || '';
+    const cutoffTime = configRes.data.values?.[0]?.[2] || '';
 
     if (!activeCode || code.toUpperCase() !== activeCode.toUpperCase()) {
       return res.status(400).json({ error: 'Invalid or expired session code. Please check with your instructor.' });
@@ -38,7 +48,6 @@ export default async function handler(req, res) {
       PSY170: 'PSY170-Attendance',
       PSY175: 'PSY175-Attendance',
     };
-
     const targetSheet = classSheets[activeClass] || 'Sheet1';
 
     const classLat = parseFloat(process.env.CLASS_LAT || '0');
@@ -46,11 +55,22 @@ export default async function handler(req, res) {
     const classRadius = parseFloat(process.env.CLASS_RADIUS || '50');
 
     let distance = null;
-    let status = 'NO_LOCATION_SET';
+    let locationVerified = false;
 
     if (classLat !== 0 && classLng !== 0) {
       distance = haversineDistance(latitude, longitude, classLat, classLng);
-      status = distance <= classRadius ? 'PRESENT' : 'FLAGGED';
+      locationVerified = distance <= classRadius;
+    }
+
+    const late = isPastCutoff(cutoffTime);
+
+    let status;
+    if (!locationVerified && (classLat !== 0 && classLng !== 0)) {
+      status = 'LOCATION UNVERIFIED';
+    } else if (late) {
+      status = 'LATE';
+    } else {
+      status = 'PRESENT';
     }
 
     const timestamp = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' });
@@ -64,13 +84,14 @@ export default async function handler(req, res) {
       },
     });
 
-    return res.status(200).json({
-      message: status === 'PRESENT'
-        ? 'Check-in successful! You are marked as present.'
-        : status === 'FLAGGED'
-        ? `You're checked in, but you are ${Math.round(distance).toLocaleString()} meters away from the correct location. If you are present in class, please show this message to your professor.`
-        : 'Check-in recorded.',
-    });
+    const messages = {
+      'PRESENT': 'Your attendance has been recorded successfully.',
+      'LATE': 'Your attendance has been submitted too late for this class session.',
+      'LOCATION UNVERIFIED': 'Your location could not be verified. Please see your instructor.',
+    };
+
+    return res.status(200).json({ message: messages[status] });
+
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Could not save your check-in. Please try again.' });
