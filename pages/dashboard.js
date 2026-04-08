@@ -92,8 +92,8 @@ export default function Dashboard() {
   }
 
   const present = checkins.filter((c) => c.status === 'PRESENT').length;
-  const late = checkins.filter((c) => c.status === 'LATE').length;
-  const unverified = checkins.filter((c) => c.status === 'LOCATION UNVERIFIED').length;
+  const late = checkins.filter((c) => c.status === 'LATE' || c.status === 'LOCATION UNVERIFIED & LATE').length;
+  const unverified = checkins.filter((c) => c.status === 'LOCATION UNVERIFIED' || c.status === 'LOCATION UNVERIFIED & LATE').length;
 
   return (
     <div style={styles.page}>
@@ -222,11 +222,13 @@ export default function Dashboard() {
                         backgroundColor:
                           c.status === 'PRESENT' ? '#c6f6d5' :
                           c.status === 'LATE' ? '#fefcbf' :
-                          c.status === 'LOCATION UNVERIFIED' ? '#fed7d7' : '#e2e8f0',
+                          c.status === 'LOCATION UNVERIFIED' ? '#fed7d7' :
+                          c.status === 'LOCATION UNVERIFIED & LATE' ? '#fed7d7' : '#e2e8f0',
                         color:
                           c.status === 'PRESENT' ? '#276749' :
                           c.status === 'LATE' ? '#b7791f' :
-                          c.status === 'LOCATION UNVERIFIED' ? '#9b2c2c' : '#4a5568',
+                          c.status === 'LOCATION UNVERIFIED' ? '#9b2c2c' :
+                          c.status === 'LOCATION UNVERIFIED & LATE' ? '#9b2c2c' : '#4a5568',
                       }}>
                         {c.status}
                       </span>
