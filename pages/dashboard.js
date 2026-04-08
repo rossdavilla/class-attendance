@@ -21,6 +21,7 @@ export default function Dashboard() {
   const [radius, setRadius] = useState('80');
   const [selectedLocation, setSelectedLocation] = useState(0);
   const [selectedClass, setSelectedClass] = useState(0);
+  const [cutoffTime, setCutoffTime] = useState('');
   const [lastRefresh, setLastRefresh] = useState(null);
 
   const handleLocationSelect = (index) => {
@@ -57,7 +58,7 @@ export default function Dashboard() {
     const res = await fetch('/api/generate-code', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password, activeClass: CLASSES[selectedClass] }),
+      body: JSON.stringify({ password, activeClass: CLASSES[selectedClass], cutoffTime }),
     });
     const data = await res.json();
     if (res.ok) {
@@ -91,7 +92,8 @@ export default function Dashboard() {
   }
 
   const present = checkins.filter((c) => c.status === 'PRESENT').length;
-  const flagged = checkins.filter((c) => c.status === 'FLAGGED').length;
+  const late = checkins.filter((c) => c.status === 'LATE').length;
+  const unverified = checkins.filter((c) => c.status === 'LOCATION UNVERIFIED').length;
 
   return (
     <div style={styles.page}>
@@ -136,6 +138,19 @@ export default function Dashboard() {
             onChange={(e) => setRadius(e.target.value)}
           />
         </div>
+
+        <div style={styles.radiusRow}>
+          <label style={styles.radiusLabel}>Attendance cutoff time:</label>
+          <input
+            style={styles.radiusInput}
+            type="time"
+            value={cutoffTime}
+            onChange={(e) => setCutoffTime(e.target.value)}
+          />
+        </div>
+        {cutoffTime && (
+          <p style={styles.coordDisplay}>Students checking in after {cutoffTime} will be marked Late.</p>
+        )}
       </div>
 
       <div style={styles.section}>
@@ -158,9 +173,13 @@ export default function Dashboard() {
               <div style={styles.statNum}>{present}</div>
               <div style={styles.statLabel}>Present</div>
             </div>
+            <div style={{ ...styles.statCard, borderColor: '#d97706' }}>
+              <div style={styles.statNum}>{late}</div>
+              <div style={styles.statLabel}>Late</div>
+            </div>
             <div style={{ ...styles.statCard, borderColor: '#e53e3e' }}>
-              <div style={styles.statNum}>{flagged}</div>
-              <div style={styles.statLabel}>Flagged</div>
+              <div style={styles.statNum}>{unverified}</div>
+              <div style={styles.statLabel}>Unverified</div>
             </div>
             <div style={{ ...styles.statCard, borderColor: '#3b82f6' }}>
               <div style={styles.statNum}>{checkins.length}</div>
@@ -200,8 +219,14 @@ export default function Dashboard() {
                     <td style={styles.td}>
                       <span style={{
                         ...styles.badge,
-                        backgroundColor: c.status === 'PRESENT' ? '#c6f6d5' : c.status === 'FLAGGED' ? '#fed7d7' : '#e2e8f0',
-                        color: c.status === 'PRESENT' ? '#276749' : c.status === 'FLAGGED' ? '#9b2c2c' : '#4a5568',
+                        backgroundColor:
+                          c.status === 'PRESENT' ? '#c6f6d5' :
+                          c.status === 'LATE' ? '#fefcbf' :
+                          c.status === 'LOCATION UNVERIFIED' ? '#fed7d7' : '#e2e8f0',
+                        color:
+                          c.status === 'PRESENT' ? '#276749' :
+                          c.status === 'LATE' ? '#b7791f' :
+                          c.status === 'LOCATION UNVERIFIED' ? '#9b2c2c' : '#4a5568',
                       }}>
                         {c.status}
                       </span>
@@ -232,14 +257,14 @@ const styles = {
   coordDisplay: { margin: '8px 0 0 0', fontSize: '13px', color: '#4a5568', fontFamily: 'monospace' },
   radiusRow: { display: 'flex', alignItems: 'center', gap: '12px', marginTop: '12px' },
   radiusLabel: { fontSize: '14px', color: '#4a5568' },
-  radiusInput: { padding: '8px 12px', fontSize: '14px', borderRadius: '8px', border: '1.5px solid #cbd5e0', width: '90px' },
+  radiusInput: { padding: '8px 12px', fontSize: '14px', borderRadius: '8px', border: '1.5px solid #cbd5e0', width: '120px' },
   input: { padding: '12px 14px', fontSize: '16px', borderRadius: '8px', border: '1.5px solid #cbd5e0', width: '100%', boxSizing: 'border-box' },
   button: { padding: '12px 20px', fontSize: '15px', fontWeight: '600', backgroundColor: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', width: '100%' },
   codeBox: { display: 'flex', alignItems: 'center', gap: '14px', backgroundColor: '#ebf8ff', borderRadius: '10px', padding: '16px 20px', marginTop: '14px' },
   codeLabel: { fontSize: '14px', color: '#2b6cb0', fontWeight: '500' },
   code: { fontSize: '36px', fontWeight: '800', color: '#2b6cb0', letterSpacing: '6px' },
-  statsRow: { display: 'flex', gap: '16px', marginBottom: '20px' },
-  statCard: { flex: 1, backgroundColor: '#fff', border: '2px solid', borderRadius: '10px', padding: '16px', textAlign: 'center' },
+  statsRow: { display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' },
+  statCard: { flex: 1, minWidth: '80px', backgroundColor: '#fff', border: '2px solid', borderRadius: '10px', padding: '16px', textAlign: 'center' },
   statNum: { fontSize: '32px', fontWeight: '700', color: '#1a202c' },
   statLabel: { fontSize: '13px', color: '#718096', marginTop: '4px' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: '14px' },
