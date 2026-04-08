@@ -65,7 +65,9 @@ export default async function handler(req, res) {
     const late = isPastCutoff(cutoffTime);
 
     let status;
-    if (!locationVerified && (classLat !== 0 && classLng !== 0)) {
+    if (!locationVerified && late && (classLat !== 0 && classLng !== 0)) {
+      status = 'LOCATION UNVERIFIED & LATE';
+    } else if (!locationVerified && (classLat !== 0 && classLng !== 0)) {
       status = 'LOCATION UNVERIFIED';
     } else if (late) {
       status = 'LATE';
@@ -88,6 +90,7 @@ export default async function handler(req, res) {
       'PRESENT': 'Your attendance has been recorded successfully.',
       'LATE': 'Your attendance has been submitted too late for this class session.',
       'LOCATION UNVERIFIED': 'Your location could not be verified. Please see your instructor.',
+      'LOCATION UNVERIFIED & LATE': 'Your location could not be verified. Please see your instructor. Your attendance has also been submitted too late for this class session.',
     };
 
     return res.status(200).json({ message: messages[status] });
