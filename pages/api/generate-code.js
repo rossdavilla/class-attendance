@@ -3,7 +3,7 @@ import { getSheet } from '../../lib/sheets';
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { password, activeClass } = req.body;
+  const { password, activeClass, cutoffTime } = req.body;
   if (password !== process.env.DASHBOARD_PASSWORD) {
     return res.status(401).json({ error: 'Incorrect password.' });
   }
@@ -18,9 +18,9 @@ export default async function handler(req, res) {
     const sheet = await getSheet();
     await sheet.spreadsheets.values.update({
       spreadsheetId: process.env.SHEET_ID,
-      range: 'Config!B1:C1',
+      range: 'Config!B1:D1',
       valueInputOption: 'USER_ENTERED',
-      requestBody: { values: [[code, activeClass]] },
+      requestBody: { values: [[code, activeClass, cutoffTime || '']] },
     });
     return res.status(200).json({ code });
   } catch (err) {
