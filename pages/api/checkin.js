@@ -12,10 +12,22 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
 function isPastCutoff(cutoffTime) {
   if (!cutoffTime) return false;
   const now = new Date();
+  const pacificTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
   const [hours, minutes] = cutoffTime.split(':').map(Number);
-  const cutoff = new Date();
+  const cutoff = new Date(pacificTime);
   cutoff.setHours(hours, minutes, 0, 0);
-  return now > cutoff;
+  return pacificTime > cutoff;
+}
+
+async function getSheetWithRetry(retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await getSheet();
+    } catch (err) {
+      if (i === retries - 1) throw err;
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  }
 }
 
 export default async function handler(req, res) {
@@ -28,16 +40,20 @@ export default async function handler(req, res) {
   }
 
   try {
-    const sheet = await getSheet();
+    const sheet = await getSheetWithRetry();
 
     const configRes = await sheet.spreadsheets.values.get({
       spreadsheetId: process.env.SHEET_ID,
-      range: 'Config!B1:D1',
+      range: 'Config!B1:G1',
     });
 
-    const activeCode = configRes.data.values?.[0]?.[0] || '';
-    const activeClass = configRes.data.values?.[0]?.[1] || '';
-    const cutoffTime = configRes.data.values?.[0]?.[2] || '';
+    const row = configRes.data.values?.[0] || [];
+    const activeCode   = row[0] || '';
+    const activeClass  = row[1] || '';
+    const cutoffTime   = row[2] || '';
+    const classLat     = parseFloat(row[3] || '0');
+    const classLng     = parseFloat(row[4] || '0');
+    const classRadius  = parseFloat(row[5] || '80');
 
     if (!activeCode || code.toUpperCase() !== activeCode.toUpperCase()) {
       return res.status(400).json({ error: 'Invalid or expired session code. Please check with your instructor.' });
@@ -49,10 +65,6 @@ export default async function handler(req, res) {
       PSY175: 'PSY175-Attendance',
     };
     const targetSheet = classSheets[activeClass] || 'Sheet1';
-
-    const classLat = parseFloat(process.env.CLASS_LAT || '0');
-    const classLng = parseFloat(process.env.CLASS_LNG || '0');
-    const classRadius = parseFloat(process.env.CLASS_RADIUS || '50');
 
     let distance = null;
     let locationVerified = false;
