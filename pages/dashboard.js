@@ -58,7 +58,14 @@ export default function Dashboard() {
     const res = await fetch('/api/generate-code', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password, activeClass: CLASSES[selectedClass], cutoffTime }),
+      body: JSON.stringify({
+        password,
+        activeClass: CLASSES[selectedClass],
+        cutoffTime,
+        classLat,
+        classLng,
+        classRadius: radius,
+      }),
     });
     const data = await res.json();
     if (res.ok) {
